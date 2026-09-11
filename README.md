@@ -1,13 +1,25 @@
 # Spam Classifier
 
-A production-oriented SMS/email spam classification project built with Python, scikit-learn, TF-IDF and Logistic Regression, with a FastAPI inference service and Docker support.
+A production-oriented SMS spam classification project built with Python, scikit-learn, TF-IDF and Logistic Regression, with a FastAPI inference service, automated dataset setup, tests and Docker support.
 
 ## Architecture
 
 ```text
-CSV dataset → validation → text normalization → TF-IDF → Logistic Regression → saved model
-                                                                    ↓
-                                                            FastAPI /predict
+UCI SMS Spam Collection
+        ↓
+scripts/download_dataset.py
+        ↓
+CSV validation
+        ↓
+Text normalization
+        ↓
+TF-IDF (1–2 grams)
+        ↓
+Logistic Regression
+        ↓
+Saved model + evaluation metrics
+        ↓
+CLI / FastAPI
 ```
 
 ## Project structure
@@ -15,16 +27,18 @@ CSV dataset → validation → text normalization → TF-IDF → Logistic Regres
 ```text
 spam-classifier/
 ├── app/main.py                 # FastAPI service
-├── data/                       # Local datasets (not committed)
+├── data/                       # Local dataset (ignored by git)
 ├── notebooks/                  # Experiments / EDA
-├── artifacts/                  # Trained model (ignored by git)
+├── artifacts/                  # Model + metrics (model files ignored)
+├── scripts/download_dataset.py # Downloads official UCI dataset
 ├── src/
 │   ├── data/loader.py          # Dataset loading and validation
 │   ├── preprocessing/text.py   # Text normalization
 │   ├── models/train.py         # TF-IDF + Logistic Regression
+│   ├── evaluation.py           # Accuracy / precision / recall / F1
 │   └── inference.py            # Prediction service
 ├── tests/
-├── train.py                    # Training CLI
+├── train.py                    # Train + evaluate CLI
 ├── predict.py                  # Prediction CLI
 ├── Dockerfile
 └── requirements.txt
@@ -41,45 +55,57 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2. Add data
-
-Place your CSV at `data/spam.csv`. It should contain a text column and a label column. Common formats include `v1,v2` from the SMS Spam Collection or `label,text`. Labels can be `ham`/`spam` or `0`/`1`.
-
-### 3. Train
+### 2. Get the dataset automatically
 
 ```bash
-python train.py --data data/spam.csv
+python scripts/download_dataset.py
 ```
 
-The trained pipeline is saved to `artifacts/spam_classifier.joblib`.
+This downloads the **UCI SMS Spam Collection** (5,574 labeled messages) and creates `data/spam.csv`. The UCI dataset is published under CC BY 4.0. [UCI dataset](https://archive.ics.uci.edu/dataset/228/sms)
+
+### 3. Train and evaluate
+
+```bash
+python train.py
+```
+
+The command creates:
+
+```text
+artifacts/spam_classifier.joblib
+artifacts/metrics.json
+```
+
+It prints accuracy, precision, recall, F1 and the classification report for a stratified 80/20 test split.
 
 ### 4. Predict
 
 ```bash
-python predict.py "Congratulations! You won a free prize."
+python predict.py "Congratulations! You won a free prize!"
+python predict.py "Hey, are you coming to class today?"
 ```
 
-### 5. Run API
+### 5. Run the API
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Then open `/docs` for Swagger UI.
+Open `http://127.0.0.1:8000/docs` for Swagger UI.
 
-Health check:
+Health endpoint:
 
 ```bash
 curl http://127.0.0.1:8000/health
 ```
 
-Prediction:
+Prediction endpoint:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict -H "Content-Type: application/json" -d "{\"text\":\"You won a free prize\"}"
 ```
 
-### 6. Test
+### 6. Run tests
 
 ```bash
 pytest -q
@@ -87,13 +113,17 @@ pytest -q
 
 ### 7. Docker
 
-Build and run after training a model:
+After training a model:
 
 ```bash
 docker build -t spam-classifier .
 docker run -p 8000:8000 spam-classifier
 ```
 
-## Current scope
+## Data and reproducibility
 
-This repository provides a clean baseline that can be extended with cross-validation, precision/recall/F1 reporting, confusion matrices, experiment tracking, model versioning, authentication, rate limiting and CI/CD.
+The dataset is not committed to Git because it is downloaded reproducibly by `scripts/download_dataset.py`. The source is the official UCI Machine Learning Repository. Cite Tiago Almeida and Jos Hidalgo when using the dataset.
+
+## Next upgrades
+
+Planned improvements can include Naive Bayes and SVM baselines, cross-validation, hyperparameter search, experiment tracking, model versioning, threshold tuning, monitoring, authentication, rate limiting and CI/CD.
